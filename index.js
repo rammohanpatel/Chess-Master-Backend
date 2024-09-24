@@ -8,7 +8,7 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: 'http://localhost:3000', // Allow Next.js frontend
+    origin: 'https://chess-master-frontend.vercel.app/', // Allow Next.js frontend
     methods: ['GET', 'POST'],
   },
 });
