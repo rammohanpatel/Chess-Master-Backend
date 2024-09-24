@@ -1,6 +1,5 @@
 // index.js
 
-
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
@@ -11,9 +10,8 @@ const io = new Server(server, {
     origin: '*', // Allow frontend and localhost
     methods: ['GET', 'POST'],
   },
+  transports: ['websocket'],
 });
-
-
 
 // To track rooms, players, and their colors
 let rooms = {};
@@ -61,22 +59,45 @@ io.on('connection', (socket) => {
   // Handle player disconnect
   socket.on('disconnect', () => {
     console.log('A user disconnected:', socket.id);
-    // Remove the player from the room
+    let roomIdToDelete = null;
+
+    // Find the room the player was in and remove them
     for (const roomId in rooms) {
-      rooms[roomId].players = rooms[roomId].players.filter(
-        (player) => player.id !== socket.id
-      );
-      if (rooms[roomId].players.length === 0) {
-        delete rooms[roomId]; // Delete the room if empty
+      const playersInRoom = rooms[roomId].players;
+
+      const leavingPlayer = playersInRoom.find(player => player.id === socket.id);
+      if (leavingPlayer) {
+        rooms[roomId].players = playersInRoom.filter(player => player.id !== socket.id);
+        
+        // Notify the remaining player that their opponent left
+        if (rooms[roomId].players.length > 0) {
+          const remainingPlayerId = rooms[roomId].players[0].id;
+          socket.to(roomId).emit('opponentLeft');
+          
+          // Start a 10-second countdown to close the room
+          setTimeout(() => {
+            if (rooms[roomId].players.length === 0) {
+              console.log(`Room ${roomId} closed due to inactivity`);
+              delete rooms[roomId]; // Delete the room after the countdown if empty
+            }
+          }, 10000);
+        } else {
+          // Mark the room for deletion if no players are left
+          roomIdToDelete = roomId;
+        }
       }
+    }
+
+    // If no players left, delete the room
+    if (roomIdToDelete) {
+      delete rooms[roomIdToDelete];
     }
   });
 });
 
 app.get('/', (req, res) => {
-  res.send('Hello to Chess Master API')
-})
-
+  res.send('Hello to Chess Master API');
+});
 
 server.listen(3001, () => {
   console.log('Server running on port 3001');
